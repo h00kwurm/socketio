@@ -3,17 +3,14 @@ package socketio
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"strconv"
 )
 
 type Message struct {
 	Type int
 	ID   int
 	Body []byte
-}
-
-type Event struct {
-	Name string            `json:"name"`
-	Args []json.RawMessage `json:"args"`
 }
 
 var currentIndex = 1
@@ -24,6 +21,11 @@ func incrementMessageIndex() {
 	} else {
 		currentIndex++
 	}
+}
+
+type Event struct {
+	Name string            `json:"name"`
+	Args []json.RawMessage `json:"args"`
 }
 
 func CreateMessageEvent(message string) Message {
@@ -55,11 +57,22 @@ func CreateMessageEvent(message string) Message {
 
 }
 
-func (message Message) PrintMessage() string {
-	if message.Type == 5 {
-		return "5:" + strconv.Itoa(message.ID) + "+::" + string(message.Body)
+func CreateMessageHeartbeat() Message {
+	message := Message{
+		Type: 2,
 	}
-	return ""
+	return message
+}
+
+func (message Message) PrintMessage() string {
+	switch message.Type {
+	case 2:
+		return "2::"
+	case 5:
+		return "5:" + strconv.Itoa(message.ID) + "+::" + string(message.Body)
+	default:
+		return ""
+	}
 }
 
 func parseEvent(buffer []byte) (string, []byte) {

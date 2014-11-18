@@ -12,15 +12,15 @@ type SocketIO struct {
 	Connection *websocket.Conn
 
 	InputChannel  chan string
-	OutputChannel chan string
+	OutputChannel chan Message
 
 	callbacks map[int]func(message []byte)
 
-	OnConnect    func(output chan string)
-	OnDisconnect func(output chan string)
-	OnMessage    func(message []byte, output chan string)
-	OnJSON       func(message []byte, output chan string)
-	OnEvent      map[string]func(message []byte, output chan string)
+	OnConnect    func(output chan Message)
+	OnDisconnect func(output chan Message)
+	OnMessage    func(message []byte, output chan Message)
+	OnJSON       func(message []byte, output chan Message)
+	OnEvent      map[string]func(message []byte, output chan Message)
 	OnError      func()
 }
 
@@ -51,7 +51,7 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	socket.InputChannel = make(chan string)
 	defer close(socket.InputChannel)
 
-	socket.OutputChannel = make(chan string)
+	socket.OutputChannel = make(chan Message)
 	defer close(socket.OutputChannel)
 
 	go socket.readInput()
@@ -69,7 +69,9 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 			if !outgoing_state {
 				return errors.New("output channel closed")
 			}
-			if err := socket.Connection.WriteMessage(1, []byte(outgoing)); err != nil {
+			item := outgoing.PrintMessage()
+			fmt.Println("sending --> ", item)
+			if err := socket.Connection.WriteMessage(1, []byte(item)); err != nil {
 				fmt.Println(err)
 				return errors.New("io corrupted. can't continue")
 			}
@@ -79,28 +81,31 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	return err
 }
 
-func (socket *SocketIO) processBus() {
+// I wanted to use this as :> go processBus as you can see around
+// the late 50s lines but it isn't working right now. whatever
+// i'll figure it out
+// func (socket *SocketIO) processBus() {
 
-	for {
-		select {
-		case incoming, incoming_state := <-socket.InputChannel:
-			if !incoming_state {
-				fmt.Println("input channel is broken")
-				return
-			}
-			fmt.Println(string(incoming))
-		case outgoing, outgoing_state := <-socket.OutputChannel:
-			if !outgoing_state {
-				fmt.Println("output channel closed")
-				return
-			}
-			if err := socket.Connection.WriteMessage(1, []byte(outgoing)); err != nil {
-				fmt.Println("io corrupted, can't continue: ", err)
-				return
-			}
-		}
-	}
-}
+// 	for {
+// 		select {
+// 		case incoming, incoming_state := <-socket.InputChannel:
+// 			if !incoming_state {
+// 				fmt.Println("input channel is broken")
+// 				return
+// 			}
+// 			fmt.Println(string(incoming))
+// 		case outgoing, outgoing_state := <-socket.OutputChannel:
+// 			if !outgoing_state {
+// 				fmt.Println("output channel closed")
+// 				return
+// 			}
+// 			if err := socket.Connection.WriteMessage(1, []byte(outgoing.PrintMessage())); err != nil {
+// 				fmt.Println("io corrupted, can't continue: ", err)
+// 				return
+// 			}
+// 		}
+// 	}
+// }
 
 func (socket *SocketIO) readInput() {
 	for {
@@ -121,6 +126,7 @@ func (socket *SocketIO) readInput() {
 			}
 		case 50: //2:
 			fmt.Println("heartbeat received")
+			socket.OutputChannel <- CreateMessageHeartbeat()
 		case 51: //3:
 			if socket.OnMessage != nil {
 				message := parseMessage(buffer)
