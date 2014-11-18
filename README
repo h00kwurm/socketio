@@ -1,0 +1,9 @@
+# SocketIO .9
+
+Do not use this generally. It is a super minimal implementation of my SocketIO needs. If you do find yourself wanting to use it, go right ahead. Want to submit a pull request and help out others stuck in a shit mode of point-nine-age?
+
+Yeah, I know there are two other options for socketio. Both are backed by websockets provided by code.google.com. This is backed by gorilla websockets. Thank you gorilla.
+
+
+## Licensing
+BSD License. Do what you want.
