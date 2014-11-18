@@ -1,8 +1,8 @@
 # SocketIO .9
 
-Do not use this generally. It is a super minimal implementation of my SocketIO needs. If you do find yourself wanting to use it, go right ahead. Want to submit a pull request and help out others stuck in a shit mode of point-nine-age?
+This is a super minimal implementation of my SocketIO needs. If you do find yourself wanting to use it, go right ahead. Be forewarned! It is really underdeveloped. Want to submit a pull request and help out others stuck in a shit mode of point-nine-age?
 
-Yeah, I know there are two other options for socketio. Both are backed by websockets provided by code.google.com. This is backed by gorilla websockets. Thank you gorilla.
+Yeah, I know there are [two](https://github.com/googollee/go-socket.io) [other](https://github.com/oguzbilgic/socketio) options for socketio. Both are backed by websockets provided by [code.google.com](https://code.google.com/p/go/). This is backed by [gorilla websockets](https://github.com/gorilla/websocket). Thank you [gorilla](https://github.com/gorilla).
 
 
 ## Example: 
