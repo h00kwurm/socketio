@@ -1,8 +1,6 @@
 package socketio
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -153,22 +151,6 @@ func (socket *SocketIO) readInput() {
 			socket.InputChannel <- string(buffer)
 		}
 	}
-}
-
-type Event struct {
-	Name string            `json:"name"`
-	Args []json.RawMessage `json:"args"`
-}
-
-func parseEvent(buffer []byte) (string, []byte) {
-	var event Event
-	json.Unmarshal([]byte(buffer), &event)
-	return event.Name, event.Args[0]
-}
-
-func parseMessage(buffer []byte) []byte {
-	splitChunks := bytes.Split(buffer, []byte(":"))
-	return splitChunks[3]
 }
 
 func buildUrl(url string, endpoint string) string {
