@@ -114,18 +114,19 @@ func (socket *SocketIO) readInput() {
 			fmt.Println("error!: ", err)
 			break
 		}
+		fmt.Println("received-->", string(buffer))
 
 		switch uint8(buffer[0]) {
 		case 48: //0:
-			fmt.Println("socket closed!")
+			if socket.OnDisconnect != nil {
+				socket.OnDisconnect(socket.OutputChannel)
+			}
 			break
 		case 49: //1:
-			fmt.Println("socket opened")
 			if socket.OnConnect != nil {
 				socket.OnConnect(socket.OutputChannel)
 			}
 		case 50: //2:
-			fmt.Println("heartbeat received")
 			socket.OutputChannel <- CreateMessageHeartbeat()
 		case 51: //3:
 			if socket.OnMessage != nil {
@@ -150,12 +151,9 @@ func (socket *SocketIO) readInput() {
 			if socket.OnError != nil {
 				socket.OnError()
 			}
+			break
 		}
 
-		if msgType == 1 {
-			fmt.Println("message :", buffer)
-			socket.InputChannel <- string(buffer)
-		}
 	}
 }
 
