@@ -16,6 +16,8 @@ type SocketIO struct {
 	InputChannel  chan string
 	OutputChannel chan string
 
+	callbacks map[int]func(message []byte)
+
 	OnConnect    func(output chan string)
 	OnDisconnect func(output chan string)
 	OnMessage    func(message []byte, output chan string)
@@ -65,9 +67,13 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 				return errors.New("input channel is broken")
 			}
 			fmt.Println(string(incoming))
-		case _, outgoing_state := <-socket.OutputChannel:
+		case outgoing, outgoing_state := <-socket.OutputChannel:
 			if !outgoing_state {
 				return errors.New("output channel closed")
+			}
+			if err := socket.Connection.WriteMessage(1, []byte(outgoing)); err != nil {
+				fmt.Println(err)
+				return errors.New("io corrupted. can't continue")
 			}
 		}
 	}
@@ -75,23 +81,27 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	return err
 }
 
-func processBus(input chan string, output chan string) error {
+func (socket *SocketIO) processBus() {
 
 	for {
 		select {
-		case incoming, incoming_state := <-input:
+		case incoming, incoming_state := <-socket.InputChannel:
 			if !incoming_state {
 				fmt.Println("input channel is broken")
-				return errors.New("input channel is broken")
+				return
 			}
 			fmt.Println(string(incoming))
-		case _, outgoing_state := <-output:
+		case outgoing, outgoing_state := <-socket.OutputChannel:
 			if !outgoing_state {
-				return errors.New("output channel closed")
+				fmt.Println("output channel closed")
+				return
+			}
+			if err := socket.Connection.WriteMessage(1, []byte(outgoing)); err != nil {
+				fmt.Println("io corrupted, can't continue: ", err)
+				return
 			}
 		}
 	}
-
 }
 
 func (socket *SocketIO) readInput() {
@@ -152,7 +162,7 @@ type Event struct {
 
 func parseEvent(buffer []byte) (string, []byte) {
 	var event Event
-	json.Unmarshal([]byte(testData), &event)
+	json.Unmarshal([]byte(buffer), &event)
 	return event.Name, event.Args[0]
 }
 
