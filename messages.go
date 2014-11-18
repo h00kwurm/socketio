@@ -16,7 +16,7 @@ type Message struct {
 var currentIndex = 1
 
 func incrementMessageIndex() {
-	if currentIndex > 128 {
+	if currentIndex == 128 {
 		currentIndex = 1
 	} else {
 		currentIndex++
@@ -77,7 +77,8 @@ func (message Message) PrintMessage() string {
 
 func parseEvent(buffer []byte) (string, []byte) {
 	var event Event
-	json.Unmarshal([]byte(buffer), &event)
+	index := bytes.Index(buffer, []byte("{"))
+	json.Unmarshal(buffer[index:], &event)
 	return event.Name, event.Args[0]
 }
 
