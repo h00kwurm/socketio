@@ -103,8 +103,12 @@ func parseAck(buffer []byte) (int, []byte) {
 			return id, []byte("")
 		} else {
 			index := bytes.Index(buffer, []byte("{"))
-			lastIndex := len(buffer) - 1
-			return id, buffer[index:lastIndex]
+			if index != -1 {
+				lastIndex := len(buffer) - 1
+				return id, buffer[index:lastIndex]
+			} else {
+				return id, []byte("")
+			}
 		}
 	} else {
 		return id, []byte("")
