@@ -20,6 +20,7 @@ type SocketIO struct {
 	OnDisconnect func(output chan Message)
 	OnMessage    func(message []byte, output chan Message)
 	OnJSON       func(message []byte, output chan Message)
+	OnAck        func(message []byte, output chan Message)
 	OnEvent      map[string]func(message []byte, output chan Message)
 	OnError      func()
 }
@@ -48,6 +49,8 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	}
 	defer socket.Connection.Close()
 
+	socket.callbacks = make(map[int]func(message []byte))
+
 	socket.InputChannel = make(chan string)
 	defer close(socket.InputChannel)
 
@@ -68,6 +71,9 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 		case outgoing, outgoing_state := <-socket.OutputChannel:
 			if !outgoing_state {
 				return errors.New("output channel closed")
+			}
+			if outgoing.Type == 5 && outgoing.Ack != nil {
+				socket.callbacks[outgoing.ID] = outgoing.Ack
 			}
 			item := outgoing.PrintMessage()
 			fmt.Println("sending --> ", item)
@@ -116,45 +122,51 @@ func (socket *SocketIO) readInput() {
 		}
 		fmt.Println("received-->", string(buffer))
 
-		switch uint8(buffer[0]) {
-		case 48: //0:
-			if socket.OnDisconnect != nil {
-				socket.OnDisconnect(socket.OutputChannel)
-			}
-			break
-		case 49: //1:
-			if socket.OnConnect != nil {
-				socket.OnConnect(socket.OutputChannel)
-			}
-		case 50: //2:
-			socket.OutputChannel <- CreateMessageHeartbeat()
-		case 51: //3:
-			if socket.OnMessage != nil {
-				message := parseMessage(buffer)
-				socket.OnMessage(message, socket.OutputChannel)
-			}
-		case 52: //4:
-			if socket.OnJSON != nil {
-				message := parseMessage(buffer)
-				socket.OnJSON(message, socket.OutputChannel)
-			}
-		case 53: //5:
-			if socket.OnEvent != nil {
-				eventName, eventMessage := parseEvent(buffer)
-				if eventFunction := socket.OnEvent[eventName]; eventFunction != nil {
-					eventFunction(eventMessage, socket.OutputChannel)
+		if msgType == 1 {
+			switch uint8(buffer[0]) {
+			case 48: //0:
+				if socket.OnDisconnect != nil {
+					socket.OnDisconnect(socket.OutputChannel)
 				}
-			}
-		case 54: //6:
+				break
+			case 49: //1:
+				if socket.OnConnect != nil {
+					socket.OnConnect(socket.OutputChannel)
+				}
+			case 50: //2:
+				socket.OutputChannel <- CreateMessageHeartbeat()
+			case 51: //3:
+				if socket.OnMessage != nil {
+					message := parseMessage(buffer)
+					socket.OnMessage(message, socket.OutputChannel)
+				}
+			case 52: //4:
+				if socket.OnJSON != nil {
+					message := parseMessage(buffer)
+					socket.OnJSON(message, socket.OutputChannel)
+				}
+			case 53: //5:
+				if socket.OnEvent != nil {
+					eventName, eventMessage := parseEvent(buffer)
+					if eventFunction := socket.OnEvent[eventName]; eventFunction != nil {
+						eventFunction(eventMessage, socket.OutputChannel)
+					}
+				}
+			case 54: //6:
+				if socket.OnAck != nil {
 
-		case 55: //7:
-			if socket.OnError != nil {
-				socket.OnError()
+				}
+			case 55: //7:
+				if socket.OnError != nil {
+					socket.OnError()
+				}
+				break
 			}
-			break
+
 		}
 
 	}
+
 }
 
 func buildUrl(url string, endpoint string) string {
