@@ -1,7 +1,6 @@
 package socketio
 
 import (
-	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"strings"
@@ -58,7 +57,7 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	defer close(socket.OutputChannel)
 
 	go socket.readInput()
-	go processBus(socket.InputChannel, socket.OutputChannel)
+	go socket.processBus()
 
 	// for {
 	// 	select {
@@ -97,12 +96,13 @@ func (socket *SocketIO) processBus() {
 		case incoming, incoming_state := <-socket.InputChannel:
 			if !incoming_state {
 				fmt.Println("input channel is broken")
-				return errors.New("input channel is broken")
+				return
 			}
 			fmt.Println(string(incoming))
 		case outgoing, outgoing_state := <-socket.OutputChannel:
 			if !outgoing_state {
-				return errors.New("output channel closed")
+				fmt.Println("output channel closed")
+				return
 			}
 			if outgoing.Type == 5 && outgoing.Ack != nil {
 				socket.callbacks[outgoing.ID] = outgoing.Ack
@@ -111,7 +111,8 @@ func (socket *SocketIO) processBus() {
 			fmt.Println("sending --> ", item)
 			if err := socket.Connection.WriteMessage(1, []byte(item)); err != nil {
 				fmt.Println(err)
-				return errors.New("io corrupted. can't continue")
+				fmt.Println("io corrupted. can't continue")
+				return
 			}
 		}
 	}
