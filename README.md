@@ -1,4 +1,5 @@
 # SocketIO .9
+[![Build Status](https://travis-ci.org/h00kwurm/socketio.svg?branch=master)](https://travis-ci.org/h00kwurm/socketio)
 
 This is a super minimal implementation of my SocketIO needs. If you do find yourself wanting to use it, go right ahead. Be forewarned! It is really underdeveloped. Want to submit a pull request and help out others stuck in a shit mode of point-nine-age?
 
