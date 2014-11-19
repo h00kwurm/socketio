@@ -14,7 +14,7 @@ type SocketIO struct {
 	InputChannel  chan string
 	OutputChannel chan Message
 
-	callbacks map[int]func(message []byte)
+	callbacks map[int]func(message []byte, output chan Message)
 
 	OnConnect    func(output chan Message)
 	OnDisconnect func(output chan Message)
@@ -49,7 +49,7 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	}
 	defer socket.Connection.Close()
 
-	socket.callbacks = make(map[int]func(message []byte))
+	socket.callbacks = make(map[int]func(message []byte, output chan Message))
 
 	socket.InputChannel = make(chan string)
 	defer close(socket.InputChannel)
@@ -148,13 +148,21 @@ func (socket *SocketIO) readInput() {
 			case 53: //5:
 				if socket.OnEvent != nil {
 					eventName, eventMessage := parseEvent(buffer)
-					if eventFunction := socket.OnEvent[eventName]; eventFunction != nil {
-						eventFunction(eventMessage, socket.OutputChannel)
+					if socket.OnEvent != nil {
+						if eventFunction := socket.OnEvent[eventName]; eventFunction != nil {
+							eventFunction(eventMessage, socket.OutputChannel)
+						}
 					}
 				}
 			case 54: //6:
+				id, data := parseAck(buffer)
+				function, exists := socket.callbacks[id]
+				if exists {
+					function(data, socket.OutputChannel)
+					delete(socket.callbacks, id)
+				}
 				if socket.OnAck != nil {
-
+					socket.OnAck(data, socket.OutputChannel)
 				}
 			case 55: //7:
 				if socket.OnError != nil {

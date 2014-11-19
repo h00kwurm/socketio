@@ -11,7 +11,7 @@ type Message struct {
 	Type int
 	ID   int
 	Body []byte
-	Ack  func(message []byte)
+	Ack  func(message []byte, output chan Message)
 }
 
 var currentIndex = 1
@@ -29,7 +29,7 @@ type Event struct {
 	Args []json.RawMessage `json:"args"`
 }
 
-func CreateMessageEvent(message string, ack func(message []byte)) Message {
+func CreateMessageEvent(message string, ack func(message []byte, output chan Message)) Message {
 
 	var temp json.RawMessage
 	json.Unmarshal([]byte(message), &temp)
