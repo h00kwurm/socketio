@@ -92,6 +92,22 @@ func parseMessage(buffer []byte) []byte {
 	return splitChunks[3]
 }
 
-func parseAck(buffer []byte) []byte {
-	return []byte("")
+func parseAck(buffer []byte) (int, []byte) {
+	if len(buffer) < 5 {
+		return 0, []byte("")
+	}
+	id, _ := strconv.Atoi(string(buffer[4]))
+
+	if len(buffer) > 5 {
+		if uint8(buffer[5]) != 43 {
+			return id, []byte("")
+		} else {
+			index := bytes.Index(buffer, []byte("{"))
+			lastIndex := len(buffer) - 1
+			return id, buffer[index:lastIndex]
+		}
+	} else {
+		return id, []byte("")
+	}
+
 }
