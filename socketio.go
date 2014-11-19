@@ -58,7 +58,39 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	defer close(socket.OutputChannel)
 
 	go socket.readInput()
-	// go processBus(socket.InputChannel, socket.OutputChannel)
+	go processBus(socket.InputChannel, socket.OutputChannel)
+
+	// for {
+	// 	select {
+	// 	case incoming, incoming_state := <-socket.InputChannel:
+	// 		if !incoming_state {
+	// 			fmt.Println("input channel is broken")
+	// 			return errors.New("input channel is broken")
+	// 		}
+	// 		fmt.Println(string(incoming))
+	// 	case outgoing, outgoing_state := <-socket.OutputChannel:
+	// 		if !outgoing_state {
+	// 			return errors.New("output channel closed")
+	// 		}
+	// 		if outgoing.Type == 5 && outgoing.Ack != nil {
+	// 			socket.callbacks[outgoing.ID] = outgoing.Ack
+	// 		}
+	// 		item := outgoing.PrintMessage()
+	// 		fmt.Println("sending --> ", item)
+	// 		if err := socket.Connection.WriteMessage(1, []byte(item)); err != nil {
+	// 			fmt.Println(err)
+	// 			return errors.New("io corrupted. can't continue")
+	// 		}
+	// 	}
+	// }
+
+	return err
+}
+
+// I wanted to use this as :> go processBus as you can see around
+// the late 50s lines but it isn't working right now. whatever
+// i'll figure it out
+func (socket *SocketIO) processBus() {
 
 	for {
 		select {
@@ -84,34 +116,7 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 		}
 	}
 
-	return err
 }
-
-// I wanted to use this as :> go processBus as you can see around
-// the late 50s lines but it isn't working right now. whatever
-// i'll figure it out
-// func (socket *SocketIO) processBus() {
-
-// 	for {
-// 		select {
-// 		case incoming, incoming_state := <-socket.InputChannel:
-// 			if !incoming_state {
-// 				fmt.Println("input channel is broken")
-// 				return
-// 			}
-// 			fmt.Println(string(incoming))
-// 		case outgoing, outgoing_state := <-socket.OutputChannel:
-// 			if !outgoing_state {
-// 				fmt.Println("output channel closed")
-// 				return
-// 			}
-// 			if err := socket.Connection.WriteMessage(1, []byte(outgoing.PrintMessage())); err != nil {
-// 				fmt.Println("io corrupted, can't continue: ", err)
-// 				return
-// 			}
-// 		}
-// 	}
-// }
 
 func (socket *SocketIO) readInput() {
 	for {
