@@ -1,6 +1,7 @@
 package socketio
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"strings"
@@ -57,52 +58,19 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	defer close(socket.OutputChannel)
 
 	go socket.readInput()
-	go socket.processBus()
-
-	// for {
-	// 	select {
-	// 	case incoming, incoming_state := <-socket.InputChannel:
-	// 		if !incoming_state {
-	// 			fmt.Println("input channel is broken")
-	// 			return errors.New("input channel is broken")
-	// 		}
-	// 		fmt.Println(string(incoming))
-	// 	case outgoing, outgoing_state := <-socket.OutputChannel:
-	// 		if !outgoing_state {
-	// 			return errors.New("output channel closed")
-	// 		}
-	// 		if outgoing.Type == 5 && outgoing.Ack != nil {
-	// 			socket.callbacks[outgoing.ID] = outgoing.Ack
-	// 		}
-	// 		item := outgoing.PrintMessage()
-	// 		fmt.Println("sending --> ", item)
-	// 		if err := socket.Connection.WriteMessage(1, []byte(item)); err != nil {
-	// 			fmt.Println(err)
-	// 			return errors.New("io corrupted. can't continue")
-	// 		}
-	// 	}
-	// }
-
-	return err
-}
-
-// I wanted to use this as :> go processBus as you can see around
-// the late 50s lines but it isn't working right now. whatever
-// i'll figure it out
-func (socket *SocketIO) processBus() {
+	// go socket.processBus()
 
 	for {
 		select {
 		case incoming, incoming_state := <-socket.InputChannel:
 			if !incoming_state {
 				fmt.Println("input channel is broken")
-				return
+				return errors.New("input channel is broken")
 			}
 			fmt.Println(string(incoming))
 		case outgoing, outgoing_state := <-socket.OutputChannel:
 			if !outgoing_state {
-				fmt.Println("output channel closed")
-				return
+				return errors.New("output channel closed")
 			}
 			if outgoing.Type == 5 && outgoing.Ack != nil {
 				socket.callbacks[outgoing.ID] = outgoing.Ack
@@ -111,13 +79,46 @@ func (socket *SocketIO) processBus() {
 			fmt.Println("sending --> ", item)
 			if err := socket.Connection.WriteMessage(1, []byte(item)); err != nil {
 				fmt.Println(err)
-				fmt.Println("io corrupted. can't continue")
-				return
+				return errors.New("io corrupted. can't continue")
 			}
 		}
 	}
 
+	return err
 }
+
+// I wanted to use this as :> go processBus as you can see around
+// the late 50s lines but it isn't working right now. whatever
+// i'll figure it out
+// func (socket *SocketIO) processBus() {
+
+// 	for {
+// 		select {
+// 		case incoming, incoming_state := <-socket.InputChannel:
+// 			if !incoming_state {
+// 				fmt.Println("input channel is broken")
+// 				return
+// 			}
+// 			fmt.Println(string(incoming))
+// 		case outgoing, outgoing_state := <-socket.OutputChannel:
+// 			if !outgoing_state {
+// 				fmt.Println("output channel closed")
+// 				return
+// 			}
+// 			if outgoing.Type == 5 && outgoing.Ack != nil {
+// 				socket.callbacks[outgoing.ID] = outgoing.Ack
+// 			}
+// 			item := outgoing.PrintMessage()
+// 			fmt.Println("sending --> ", item)
+// 			if err := socket.Connection.WriteMessage(1, []byte(item)); err != nil {
+// 				fmt.Println(err)
+// 				fmt.Println("io corrupted. can't continue")
+// 				return
+// 			}
+// 		}
+// 	}
+
+// }
 
 func (socket *SocketIO) readInput() {
 	for {
@@ -132,31 +133,31 @@ func (socket *SocketIO) readInput() {
 			switch uint8(buffer[0]) {
 			case 48: //0:
 				if socket.OnDisconnect != nil {
-					socket.OnDisconnect(socket.OutputChannel)
+					go socket.OnDisconnect(socket.OutputChannel)
 				}
 				break
 			case 49: //1:
 				if socket.OnConnect != nil {
-					socket.OnConnect(socket.OutputChannel)
+					go socket.OnConnect(socket.OutputChannel)
 				}
 			case 50: //2:
 				socket.OutputChannel <- CreateMessageHeartbeat()
 			case 51: //3:
 				if socket.OnMessage != nil {
 					message := parseMessage(buffer)
-					socket.OnMessage(message, socket.OutputChannel)
+					go socket.OnMessage(message, socket.OutputChannel)
 				}
 			case 52: //4:
 				if socket.OnJSON != nil {
 					message := parseMessage(buffer)
-					socket.OnJSON(message, socket.OutputChannel)
+					go socket.OnJSON(message, socket.OutputChannel)
 				}
 			case 53: //5:
 				if socket.OnEvent != nil {
 					eventName, eventMessage := parseEvent(buffer)
 					if socket.OnEvent != nil {
 						if eventFunction := socket.OnEvent[eventName]; eventFunction != nil {
-							eventFunction(eventMessage, socket.OutputChannel)
+							go eventFunction(eventMessage, socket.OutputChannel)
 						}
 					}
 				}
@@ -164,15 +165,15 @@ func (socket *SocketIO) readInput() {
 				id, data := parseAck(buffer)
 				function, exists := socket.callbacks[id]
 				if exists {
-					function(data, socket.OutputChannel)
+					go function(data, socket.OutputChannel)
 					delete(socket.callbacks, id)
 				}
 				if socket.OnAck != nil {
-					socket.OnAck(data, socket.OutputChannel)
+					go socket.OnAck(data, socket.OutputChannel)
 				}
 			case 55: //7:
 				if socket.OnError != nil {
-					socket.OnError()
+					go socket.OnError()
 				}
 				break
 			}
