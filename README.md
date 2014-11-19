@@ -4,6 +4,7 @@ This is a super minimal implementation of my SocketIO needs. If you do find your
 
 Yeah, I know there are [two](https://github.com/googollee/go-socket.io) [other](https://github.com/oguzbilgic/socketio) options for socketio. Both are backed by websockets provided by [code.google.com](https://code.google.com/p/go/). This is backed by [gorilla websockets](https://github.com/gorilla/websocket). Thank you [gorilla](https://github.com/gorilla).
 
+If it wasn't clear by now, this only supports websockets. Maybe you're thinking to yourself, why socketio if it always uses just websockets. Because reasons. That's why.
 
 ## Example: 
 
@@ -17,7 +18,7 @@ Yeah, I know there are [two](https://github.com/googollee/go-socket.io) [other](
     const remoteServer = "http://127.0.0.1:8088"
 
     func onConnect(output chan socketio.Message) {
-      output <- socketio.CreateMessageEvent(`{"msg":"fuck you"}`)
+      output <- socketio.CreateMessageEvent(`{"msg":"test message"}`)
     }
 
     func main() {
