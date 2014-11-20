@@ -2,7 +2,6 @@ package socketio
 
 import (
 	"errors"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"strings"
 )
@@ -11,8 +10,9 @@ type SocketIO struct {
 	Context    *Session
 	Connection *websocket.Conn
 
-	InputChannel  chan string
-	OutputChannel chan Message
+	InputChannel      chan string
+	OutputChannel     chan Message
+	ConnectionChannel chan bool
 
 	callbacks map[int]func(message []byte, output chan Message)
 
@@ -31,7 +31,7 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 
 	socket.Context, err = NewSession(urlString)
 	if err != nil {
-		fmt.Println(err)
+		// fmt.Println(err)
 		return err
 	}
 
@@ -44,7 +44,7 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 
 	socket.Connection, _, err = connector.Dial(connectionUrl, nil)
 	if err != nil {
-		fmt.Println(err)
+		// fmt.Println(err)
 		return err
 	}
 	defer socket.Connection.Close()
@@ -57,28 +57,33 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	socket.OutputChannel = make(chan Message)
 	defer close(socket.OutputChannel)
 
+	socket.ConnectionChannel = make(chan bool)
+	defer close(socket.ConnectionChannel)
+
 	go socket.readInput()
-	// go socket.processBus()
 
 	for {
 		select {
-		case incoming, incoming_state := <-socket.InputChannel:
+		case _, incoming_state := <-socket.InputChannel:
 			if !incoming_state {
-				fmt.Println("input channel is broken")
+				// fmt.Println("input channel is broken")
+				socket.ConnectionChannel <- false
 				return errors.New("input channel is broken")
 			}
-			fmt.Println(string(incoming))
+			// fmt.Println(string(incoming))
 		case outgoing, outgoing_state := <-socket.OutputChannel:
 			if !outgoing_state {
+				socket.ConnectionChannel <- false
 				return errors.New("output channel closed")
 			}
 			if outgoing.Type == 5 && outgoing.Ack != nil {
 				socket.callbacks[outgoing.ID] = outgoing.Ack
 			}
 			item := outgoing.PrintMessage()
-			fmt.Println("sending --> ", item)
+			// fmt.Println("sending --> ", item)
 			if err := socket.Connection.WriteMessage(1, []byte(item)); err != nil {
-				fmt.Println(err)
+				// fmt.Println(err)
+				socket.ConnectionChannel <- false
 				return errors.New("io corrupted. can't continue")
 			}
 		}
@@ -87,47 +92,14 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 	return err
 }
 
-// I wanted to use this as :> go processBus as you can see around
-// the late 50s lines but it isn't working right now. whatever
-// i'll figure it out
-// func (socket *SocketIO) processBus() {
-
-// 	for {
-// 		select {
-// 		case incoming, incoming_state := <-socket.InputChannel:
-// 			if !incoming_state {
-// 				fmt.Println("input channel is broken")
-// 				return
-// 			}
-// 			fmt.Println(string(incoming))
-// 		case outgoing, outgoing_state := <-socket.OutputChannel:
-// 			if !outgoing_state {
-// 				fmt.Println("output channel closed")
-// 				return
-// 			}
-// 			if outgoing.Type == 5 && outgoing.Ack != nil {
-// 				socket.callbacks[outgoing.ID] = outgoing.Ack
-// 			}
-// 			item := outgoing.PrintMessage()
-// 			fmt.Println("sending --> ", item)
-// 			if err := socket.Connection.WriteMessage(1, []byte(item)); err != nil {
-// 				fmt.Println(err)
-// 				fmt.Println("io corrupted. can't continue")
-// 				return
-// 			}
-// 		}
-// 	}
-
-// }
-
 func (socket *SocketIO) readInput() {
 	for {
 		msgType, buffer, err := socket.Connection.ReadMessage()
 		if err != nil {
-			fmt.Println("error!: ", err)
+			// fmt.Println("error!: ", err)
 			break
 		}
-		fmt.Println("received-->", string(buffer))
+		// fmt.Println("received-->", string(buffer))
 
 		if msgType == 1 {
 			switch uint8(buffer[0]) {
