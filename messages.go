@@ -29,15 +29,23 @@ type Event struct {
 	Args []json.RawMessage `json:"args"`
 }
 
-func CreateMessageEvent(message string, ack func(message []byte, output chan Message)) Message {
+func CreateMessageEvent(name, message string, ack func(message []byte, output chan Message)) Message {
 
 	var temp json.RawMessage
 	json.Unmarshal([]byte(message), &temp)
 	tempArray := []json.RawMessage{temp}
+	messageBody := Event{}
 
-	messageBody := Event{
-		Name: "message",
-		Args: tempArray,
+	if name == "" {
+		messageBody = Event{
+			Name: "message",
+			Args: tempArray,
+		}
+	} else {
+		messageBody = Event{
+			Name: name,
+			Args: tempArray,
+		}
 	}
 
 	messageEvent := Message{
