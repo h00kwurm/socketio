@@ -96,7 +96,9 @@ func (socket *SocketIO) readInput() {
 	for {
 		msgType, buffer, err := socket.Connection.ReadMessage()
 		if err != nil {
-			// fmt.Println("error!: ", err)
+			if socket.OnDisconnect != nil {
+				go socket.OnDisconnect(socket.OutputChannel)
+			}
 			break
 		}
 		// fmt.Println("received-->", string(buffer))
