@@ -4,13 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"strconv"
 )
 
 type Message struct {
 	Type int
+	Event string
 	ID   int
 	Body []byte
+	Bodyv1 []byte
+	Version float64
 	Ack  func(message []byte, output chan Message)
 }
 
@@ -25,12 +29,11 @@ func incrementMessageIndex() {
 }
 
 type Event struct {
-	Name string            `json:"name"`
+	Event string            `json:"name"`
 	Args []json.RawMessage `json:"args"`
 }
 
-func CreateMessageEvent(name, message string, ack func(message []byte, output chan Message)) Message {
-
+func CreateMessageEvent(name, message string, ack func(message []byte, output chan Message), version float64) Message {
 	var temp json.RawMessage
 	json.Unmarshal([]byte(message), &temp)
 	tempArray := []json.RawMessage{temp}
@@ -38,21 +41,28 @@ func CreateMessageEvent(name, message string, ack func(message []byte, output ch
 
 	if name == "" {
 		messageBody = Event{
-			Name: "message",
+			Event: "message",
 			Args: tempArray,
 		}
 	} else {
 		messageBody = Event{
-			Name: name,
+			Event: name,
 			Args: tempArray,
 		}
 	}
 
 	messageEvent := Message{
 		Type: 5,
+		Event: name,
 		ID:   currentIndex,
 		Ack:  ack,
+		Version: version,
 	}
+
+	if version == 1 {
+		messageEvent.Bodyv1 = []byte(message)
+	}
+
 	incrementMessageIndex()
 
 	tempMessage, err := json.Marshal(messageBody)
@@ -75,13 +85,17 @@ func CreateMessageHeartbeat() Message {
 }
 
 func (message Message) PrintMessage() string {
-	switch message.Type {
-	case 2:
-		return "2::"
-	case 5:
-		return "5:" + strconv.Itoa(message.ID) + "+::" + string(message.Body)
-	default:
-		return ""
+	if message.Version == 1 {
+		return `42["` + message.Event + `",` + string(message.Bodyv1) + "]"
+	} else {
+		switch message.Type {
+		case 2:
+			return "2::"
+		case 5:
+			return "5:" + strconv.Itoa(message.ID) + "+::" + string(message.Body)
+		default:
+			return ""
+		}
 	}
 }
 
@@ -89,7 +103,16 @@ func parseEvent(buffer []byte) (string, []byte) {
 	var event Event
 	index := bytes.Index(buffer, []byte("{"))
 	json.Unmarshal(buffer[index:], &event)
-	return event.Name, event.Args[0]
+	return event.Event, event.Args[0]
+}
+
+func parseEventv1(buffer []byte) (string, []byte) {
+	msg := strings.TrimLeft(string(buffer), "42")
+	var temp []interface{}
+	json.Unmarshal([]byte(msg), &temp)
+	data, _ := json.Marshal(temp[1])
+	eventName := temp[0].(string)
+	return eventName, data
 }
 
 func parseMessage(buffer []byte) []byte {

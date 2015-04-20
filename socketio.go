@@ -167,7 +167,20 @@ func (socket *SocketIO) readInput() {
 		} else if msgType == 1 && socket.Version == 1 {
 			switch uint(buffer[0]) {
 			case 52:
-				go socket.OnConnect(socket.OutputChannel)
+				if len(buffer) == 2 {
+					go socket.OnConnect(socket.OutputChannel)
+				} else if len(buffer) > 2 {
+					eventName, eventMessage := parseEventv1(buffer)
+					if socket.OnEvent != nil {
+						if eventFunction := socket.OnEvent[eventName]; eventFunction != nil {
+							go eventFunction(eventMessage, socket.OutputChannel)
+							continue
+						}
+					} 
+					if socket.OnMessage != nil {
+						go socket.OnMessage(eventMessage, socket.OutputChannel)
+					}
+				}
 			}
 		}
 	}
