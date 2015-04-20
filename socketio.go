@@ -31,7 +31,7 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 
 	var err error
 
-	if socket.Version != 0 && socket.Version != 1 {
+	if socket.Version != 0.9 && socket.Version != 1 {
 		return errors.New("socket.io version not set or supported.")
 	}
 
