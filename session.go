@@ -24,11 +24,13 @@ package socketio
 
 import (
 	"errors"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"fmt"
 )
 
 type Session struct {
@@ -40,12 +42,13 @@ type Session struct {
 
 // NewSession receives the configuration variables from the socket.io
 // server.
-func NewSession(url string) (*Session, error) {
+func NewSession(url string, version float64) (*Session, error) {
 	urlParser, err := newURLParser(url)
 	if err != nil {
 		return nil, err
 	}
-	response, err := http.Get(urlParser.handshake())
+
+	response, err := http.Get(urlParser.handshake(version))
 	if err != nil {
 		return nil, err
 	}
@@ -56,22 +59,45 @@ func NewSession(url string) (*Session, error) {
 	}
 	response.Body.Close()
 
-	sessionVars := strings.Split(string(body), ":")
-	if len(sessionVars) != 4 {
-		return nil, errors.New("Session variables is not 4")
+	fmt.Println(string(body))
+	if version == 0.9 {
+		sessionVars := strings.Split(string(body), ":")
+		if len(sessionVars) != 4 {
+			return nil, errors.New("Session variables is not 4")
+		}
+
+		id := sessionVars[0]
+
+		heartbeatTimeoutSec, _ := strconv.Atoi(sessionVars[1])
+		connectionTimeoutSec, _ := strconv.Atoi(sessionVars[2])
+
+		heartbeatTimeout := time.Duration(heartbeatTimeoutSec) * time.Second
+		connectionTimeout := time.Duration(connectionTimeoutSec) * time.Second
+
+		supportedProtocols := strings.Split(string(sessionVars[3]), ",")
+
+		return &Session{id, heartbeatTimeout, connectionTimeout, supportedProtocols}, nil
+	} else {
+		buffer := strings.Trim(string(body), "97:0")
+
+		type Handshake struct {
+			SID string `json:"sid"`
+			Upgrades []string `json:"upgrades"`
+			PingInterval int `json:"pingInterval"`
+			PingTimeout int `json:"pingTimeout"`
+		}
+
+		var hs Handshake
+		err := json.Unmarshal([]byte(buffer), &hs)
+
+		if err != nil {
+			return nil, errors.New("Unable to unmarshal JSON response from server.")
+		}
+
+		pingTimeout := time.Duration(hs.PingTimeout) * time.Millisecond
+		pingInterval := time.Duration(hs.PingInterval) * time.Millisecond
+		return &Session{hs.SID, pingInterval, pingTimeout, hs.Upgrades}, nil
 	}
-
-	id := sessionVars[0]
-
-	heartbeatTimeoutSec, _ := strconv.Atoi(sessionVars[1])
-	connectionTimeoutSec, _ := strconv.Atoi(sessionVars[2])
-
-	heartbeatTimeout := time.Duration(heartbeatTimeoutSec) * time.Second
-	connectionTimeout := time.Duration(connectionTimeoutSec) * time.Second
-
-	supportedProtocols := strings.Split(string(sessionVars[3]), ",")
-
-	return &Session{id, heartbeatTimeout, connectionTimeout, supportedProtocols}, nil
 }
 
 // SupportProtocol checks if the given protocol is supported by the

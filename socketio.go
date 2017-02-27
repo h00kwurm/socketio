@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/gorilla/websocket"
 	"strings"
+	"fmt"
 )
 
 type SocketIO struct {
@@ -13,6 +14,7 @@ type SocketIO struct {
 	InputChannel      chan string
 	OutputChannel     chan Message
 	ConnectionChannel chan bool
+	Version float64
 
 	callbacks map[int]func(message []byte, output chan Message)
 
@@ -29,7 +31,11 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 
 	var err error
 
-	socket.Context, err = NewSession(urlString)
+	if socket.Version != 0.9 && socket.Version != 1 {
+		return errors.New("socket.io version not set or supported.")
+	}
+
+	socket.Context, err = NewSession(urlString, socket.Version)
 	if err != nil {
 		// fmt.Println(err)
 		return err
@@ -40,15 +46,21 @@ func ConnectToSocket(urlString string, socket *SocketIO) error {
 		Subprotocols:     []string{"websocket"},
 	}
 
-	connectionUrl := buildUrl(urlString, (*socket.Context).ID)
+	connectionUrl := buildUrl(urlString, (*socket.Context).ID, socket.Version)
 
 	socket.Connection, _, err = connector.Dial(connectionUrl, nil)
 	if err != nil {
-		// fmt.Println(err)
+		fmt.Println(err)
 		return err
 	}
 	defer socket.Connection.Close()
 
+	if socket.Version == 1 {
+		err = socket.Connection.WriteMessage(websocket.TextMessage, []byte(`52`))
+		if err != nil {
+			return err
+		}
+	}
 	socket.callbacks = make(map[int]func(message []byte, output chan Message))
 
 	socket.InputChannel = make(chan string)
@@ -96,12 +108,14 @@ func (socket *SocketIO) readInput() {
 	for {
 		msgType, buffer, err := socket.Connection.ReadMessage()
 		if err != nil {
-			// fmt.Println("error!: ", err)
+			if socket.OnDisconnect != nil {
+				go socket.OnDisconnect(socket.OutputChannel)
+			}
 			break
 		}
 		// fmt.Println("received-->", string(buffer))
 
-		if msgType == 1 {
+		if msgType == 1 && socket.Version == 0.9 {
 			switch uint8(buffer[0]) {
 			case 48: //0:
 				if socket.OnDisconnect != nil {
@@ -150,17 +164,42 @@ func (socket *SocketIO) readInput() {
 				break
 			}
 
+		} else if msgType == 1 && socket.Version == 1 {
+			switch uint(buffer[0]) {
+			case 52:
+				if len(buffer) == 2 {
+					go socket.OnConnect(socket.OutputChannel)
+				} else if len(buffer) > 2 {
+					eventName, eventMessage := parseEventv1(buffer)
+					if socket.OnEvent != nil {
+						if eventFunction := socket.OnEvent[eventName]; eventFunction != nil {
+							go eventFunction(eventMessage, socket.OutputChannel)
+							continue
+						}
+					} 
+					if socket.OnMessage != nil {
+						go socket.OnMessage(eventMessage, socket.OutputChannel)
+					}
+				}
+			}
 		}
-
 	}
 
 }
 
-func buildUrl(url string, endpoint string) string {
-	if strings.Contains(url, "http") {
-		return strings.Replace(url, "http", "ws", 1) + "/socket.io/1/websocket/" + endpoint
-	} else if strings.Contains(url, "https") {
-		return strings.Replace(url, "https", "wss", 1) + "/socket.io/1/websocket/" + endpoint
-	}
+func buildUrl(url string, endpoint string, version float64) string {
+	if version == 1 {
+		if strings.Contains(url, "http") {
+			return strings.Replace(url, "http", "ws", 1) + "/socket.io/?transport=websocket&sid=" + endpoint
+		} else if strings.Contains(url, "https") {
+			return strings.Replace(url, "https", "wss", 1) + "/socket.io/?transport=websocket&sid=" + endpoint
+		}
+	} else {
+		if strings.Contains(url, "http") {
+			return strings.Replace(url, "http", "ws", 1) + "/socket.io/1/websocket/" + endpoint
+		} else if strings.Contains(url, "https") {
+			return strings.Replace(url, "https", "wss", 1) + "/socket.io/1/websocket/" + endpoint
+		}
+	} 
 	return url
 }

@@ -44,16 +44,24 @@ func newURLParser(raw string) (*urlParser, error) {
 	return &urlParser{raw: raw, parsed: parsed}, nil
 }
 
-func (u *urlParser) handshake() string {
-	return fmt.Sprintf("%s/socket.io/1", u.parsed.String())
+func (u *urlParser) handshake(version float64) string {
+	if version == 1 {
+		return fmt.Sprintf("%s/socket.io/?transport=polling&b64=1", u.parsed.String()) 
+	} else {
+		return fmt.Sprintf("%s/socket.io/1", u.parsed.String())
+	}
 }
 
-func (u *urlParser) websocket(sessionId string) string {
+func (u *urlParser) websocket(sessionId string, version float64) string {
 	var host string
 	if u.parsed.Scheme == "https" {
 		host = strings.Replace(u.parsed.String(), "https://", "wss://", 1)
 	} else {
 		host = strings.Replace(u.parsed.String(), "http://", "ws://", 1)
 	}
-	return fmt.Sprintf("%s/socket.io/1/websocket/%s", host, sessionId)
+	if version == 1 {
+		return fmt.Sprintf("%s/socket.io/?transport=websocket&sid=%s", host, sessionId)
+	} else {
+		return fmt.Sprintf("%s/socket.io/1/websocket/%s", host, sessionId)
+	}
 }
